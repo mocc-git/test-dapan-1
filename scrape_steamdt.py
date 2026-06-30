@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+"""变体: scrape_steamdt_E1.py - C1+板块ktype_timeout 10s
+基于C1方案生成, 修改参数以测试衍生优化。
+"""
 """SteamDT 大盘+热门板块 K线采集（含 VOL 真实成交量 + TUR 真实成交额）
 
 由 scrape_home.py 在 csqaq 采集完成后调用，复用同一 Playwright page/context。
@@ -214,7 +217,7 @@ def scrape_steamdt(page):
         result.sort(key=lambda x: int(x.get("t", 0)))
         return result
 
-    def _load_steamdt_full_kline(ktype, max_slides=8, init_wait=10000):
+    def _load_steamdt_full_kline(ktype, max_slides=6, init_wait=10000):
         print(f"  [dataZoom] SteamDT 加载 ktype={ktype} 完整历史...", flush=True)
         end_wait = time.time() + init_wait / 1000
         existing = []
@@ -236,7 +239,7 @@ def scrape_steamdt(page):
         for slide_idx in range(max_slides):
             try:
                 page.evaluate(f"""{chart_expr} && {chart_expr}.scrollToDataIndex && {chart_expr}.scrollToDataIndex(0)""")
-                page.wait_for_timeout(2500)
+                page.wait_for_timeout(1800)
 
                 new_data = None
                 for kr in reversed(kline_responses):
@@ -251,7 +254,7 @@ def scrape_steamdt(page):
                     stable_rounds = 0
                 else:
                     stable_rounds += 1
-                    if stable_rounds >= 2:
+                    if stable_rounds >= 1:
                         print(f"  [dataZoom] 数据不再增长，停止滑动（最终 {prev_count} 条）", flush=True)
                         break
             except Exception as e:
@@ -264,13 +267,13 @@ def scrape_steamdt(page):
     try:
         print(f"\n[1] 访问大盘BROAD页面...", flush=True)
         page.goto(f"{STEAMDT_URL}/section?type=BROAD", wait_until="domcontentloaded", timeout=30000)
-        page.wait_for_timeout(6000)
+        page.wait_for_timeout(3000)
         _dismiss_cookie()
         page.wait_for_timeout(500)
 
         if not _click_kline_tab():
             print(f"  ⚠ 未找到K线图标签，尝试继续", flush=True)
-        page.wait_for_timeout(5000)
+        page.wait_for_timeout(3000)
 
         broad_periods = {}
         for pk in ["1day", "1hour", "7day"]:
@@ -290,7 +293,7 @@ def scrape_steamdt(page):
                         page.wait_for_timeout(3000)
                     else:
                         print(f"  ⚠ 未找到 {PERIOD_BTNS[pk]} 按钮，等待初始数据", flush=True)
-            data = _wait_for_ktype(ktype, 15000)
+            data = _wait_for_ktype(ktype, 10000)
             if data:
                 converted = _convert(data)
                 broad_periods[pk] = converted
@@ -302,7 +305,7 @@ def scrape_steamdt(page):
 
         for pk in ["1day", "1hour", "7day"]:
             if pk in broad_periods:
-                max_slides = 8 if pk == "1day" else 4
+                max_slides = 6 if pk == "1day" else 4
                 print(f"\n  [1.5] dataZoom滑动加载大盘 {pk} 完整数据...", flush=True)
                 kline_responses.clear()
                 if _click_period(PERIOD_BTNS[pk]):
@@ -323,13 +326,13 @@ def scrape_steamdt(page):
             try:
                 kline_responses.clear()
                 page.goto(f"{STEAMDT_URL}/section?type={btype}&typeVal={bid}", wait_until="domcontentloaded", timeout=30000)
-                page.wait_for_timeout(5000)
+                page.wait_for_timeout(3000)
                 _dismiss_cookie()
                 page.wait_for_timeout(500)
 
                 if not _click_kline_tab():
                     print(f"    ⚠ 未找到K线图标签", flush=True)
-                page.wait_for_timeout(5000)
+                page.wait_for_timeout(3000)
 
                 block_periods = {}
                 for pk in ["1day", "1hour", "7day"]:
@@ -346,7 +349,7 @@ def scrape_steamdt(page):
                             kline_responses.clear()
                             if _click_period(PERIOD_BTNS[pk]):
                                 page.wait_for_timeout(3000)
-                    data = _wait_for_ktype(ktype, 15000)
+                    data = _wait_for_ktype(ktype, 10000)
                     if data:
                         converted = _convert(data)
                         block_periods[pk] = converted
